@@ -11,6 +11,63 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// validateFrappeAppStructure checks if the source directory has a valid Frappe app structure.
+func validateFrappeAppStructure(sourceDir string, appName string) error {
+	// Check 1: Existence of directory sourceDir + "/" + appName
+	innerAppPath := filepath.Join(sourceDir, appName)
+	info, err := os.Stat(innerAppPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("Frappe app validation failed: app directory '%s' not found", innerAppPath)
+	}
+	if err != nil {
+		return fmt.Errorf("Frappe app validation failed: error checking app directory '%s': %w", innerAppPath, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("Frappe app validation failed: '%s' is not a directory", innerAppPath)
+	}
+
+	// Check 2: Existence of file sourceDir + "/" + appName + "/__init__.py"
+	initPyPath := filepath.Join(innerAppPath, "__init__.py")
+	info, err = os.Stat(initPyPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("Frappe app validation failed: file '%s' not found", initPyPath)
+	}
+	if err != nil {
+		return fmt.Errorf("Frappe app validation failed: error checking file '%s': %w", initPyPath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("Frappe app validation failed: '%s' is a directory, not a file", initPyPath)
+	}
+
+	// Check 3: Existence of file sourceDir + "/" + appName + "/hooks.py"
+	hooksPyPath := filepath.Join(innerAppPath, "hooks.py")
+	info, err = os.Stat(hooksPyPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("Frappe app validation failed: file '%s' not found", hooksPyPath)
+	}
+	if err != nil {
+		return fmt.Errorf("Frappe app validation failed: error checking file '%s': %w", hooksPyPath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("Frappe app validation failed: '%s' is a directory, not a file", hooksPyPath)
+	}
+
+	// Check 4: Existence of file sourceDir + "/" + appName + "/modules.txt"
+	modulesTxtPath := filepath.Join(innerAppPath, "modules.txt")
+	info, err = os.Stat(modulesTxtPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("Frappe app validation failed: file '%s' not found", modulesTxtPath)
+	}
+	if err != nil {
+		return fmt.Errorf("Frappe app validation failed: error checking file '%s': %w", modulesTxtPath, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("Frappe app validation failed: '%s' is a directory, not a file", modulesTxtPath)
+	}
+
+	return nil // All checks passed
+}
+
 var (
 	packageSourcePath string
 	packageOutputPath string
@@ -61,6 +118,14 @@ It reads app metadata, collects source files, and bundles them into a versioned 
         // If LoadAppMetadata was called and it was successful, PackageVersion in meta
         // will be updated by the GenerateAppMetadata or the line above.
 
+		// Validate Frappe app structure
+		if meta.PackageName == "" {
+			// This should ideally be caught by GenerateAppMetadata if it's responsible for determining name
+			return fmt.Errorf("app package name could not be determined, cannot validate structure")
+		}
+		if err := validateFrappeAppStructure(absSourcePath, meta.PackageName); err != nil {
+			return err // The error from validateFrappeAppStructure is already descriptive
+		}
 
 		outputFileName := fmt.Sprintf("%s-%s.fpm", meta.PackageName, packageVersion)
 		absOutputPath, err := filepath.Abs(packageOutputPath)
